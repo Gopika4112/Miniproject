@@ -1,8 +1,9 @@
 import os
 import numpy as np
 import pandas as pd
+import joblib
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.feature_selection import SelectKBest, f_classif
@@ -18,7 +19,7 @@ X = data.drop(config.TARGET_COLUMN, axis=1)
 y = data[config.TARGET_COLUMN]
 
 # =============================
-# TRAIN TEST SPLIT (STRATIFIED)
+# STRATIFIED TRAIN-TEST SPLIT
 # =============================
 X_train, X_test, y_train, y_test = train_test_split(
     X,
@@ -31,7 +32,6 @@ X_train, X_test, y_train, y_test = train_test_split(
 # =============================
 # FIX PIMA ZERO-AS-MISSING ISSUE
 # =============================
-# Only these columns have invalid zeros
 zero_invalid_cols = ["Glucose", "BloodPressure", "SkinThickness", "Insulin", "BMI"]
 
 for col in zero_invalid_cols:
@@ -43,14 +43,14 @@ for col in zero_invalid_cols:
 # IMPUTATION (FIT ONLY ON TRAIN)
 # =============================
 imputer = SimpleImputer(
-    strategy=config.IMPUTATION_STRATEGY,  # usually "median"
+    strategy=config.IMPUTATION_STRATEGY,
     add_indicator=config.ADD_MISSING_INDICATOR
 )
 
 X_train = imputer.fit_transform(X_train)
 X_test = imputer.transform(X_test)
 
-# Update column names
+# Handle column names
 if config.ADD_MISSING_INDICATOR:
     columns = imputer.get_feature_names_out()
 else:
@@ -87,25 +87,36 @@ test_df = pd.DataFrame(X_test_scaled, columns=X_test.columns)
 test_df[config.TARGET_COLUMN] = y_test.values
 
 # =============================
-# SAVE TEST SET
+# CREATE DATASET FOLDER
 # =============================
 os.makedirs("dataset", exist_ok=True)
+
+# Save test set
 test_df.to_csv("dataset/test_set.csv", index=False)
 
 # =============================
-# SPLIT TRAIN DATA FOR HOSPITALS
+# STRATIFIED HOSPITAL SPLIT
 # =============================
-hospital_data = train_df.sample(frac=1, random_state=config.RANDOM_STATE)
+skf = StratifiedKFold(
+    n_splits=config.NUM_HOSPITALS,
+    shuffle=True,
+    random_state=config.RANDOM_STATE
+)
 
-split_size = len(hospital_data) // config.NUM_HOSPITALS
+for i, (_, idx) in enumerate(skf.split(X_train_scaled, y_train)):
+    hospital_data = train_df.iloc[idx]
+    hospital_data.to_csv(f"dataset/hospital_{i+1}.csv", index=False)
 
-for i in range(config.NUM_HOSPITALS):
-    start = i * split_size
-    end = (i + 1) * split_size if i < config.NUM_HOSPITALS - 1 else len(hospital_data)
+    print(f"Hospital {i+1} class distribution:")
+    print(hospital_data[config.TARGET_COLUMN].value_counts(normalize=True))
 
-    hospital_data.iloc[start:end].to_csv(
-        f"dataset/hospital_{i+1}.csv",
-        index=False
-    )
+# =============================
+# SAVE PREPROCESSING OBJECTS
+# =============================
+joblib.dump(imputer, "dataset/imputer.pkl")
+joblib.dump(scaler, "dataset/scaler.pkl")
 
-print("✅ Accuracy-optimized datasets created successfully!")
+if config.FEATURE_SELECTION:
+    joblib.dump(selector, "dataset/selector.pkl")
+
+print("✅ Fully optimized federated-ready datasets created successfully!")
