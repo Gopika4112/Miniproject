@@ -8,6 +8,6 @@ DATASET_DIR = "dataset"
 TEST_FILE = "test_set.csv"
 HOSPITAL_FILE_PATTERN = "hospital_{}.csv"   
 SERVER_ADDRESS = "127.0.0.1:8080"
-NUM_ROUNDS = 5
+NUM_ROUNDS = 10
 LOCAL_EPOCHS = 2
 BATCH_SIZE = 32
