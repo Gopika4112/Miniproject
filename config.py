@@ -1,5 +1,6 @@
 DATA_PATH = "diabetes.csv"
 TARGET_COLUMN = "Outcome"
+
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
 NUM_HOSPITALS = 3
